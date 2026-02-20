@@ -64,6 +64,9 @@ Dimensões:
 Fato:
 - fato_transacoes
 
+Fato Agregada:
+- fa_associado_ativo_3m
+
 Características:
 - Uso de surrogate keys
 - Integridade referencial (FK)
@@ -102,6 +105,11 @@ Isso garante que:
 - A carga não falhe
 - O dado não seja perdido
 - A qualidade possa ser monitorada posteriormente
+
+# Granularidade
+
+Fato transacional: 1 registro por transação.
+Tabela agregada (associado_flat): 1 registro por associado considerando os últimos 3 meses móveis.
 
 # Estratégia de Performance
 ## Índices
@@ -161,11 +169,22 @@ Uso de arquitetura Lakehouse com camadas bronze/silver/gold.
 
 Fato modelada como evento imutável (sem MERGE).
 
-nom_cidade_estabelecimento mantida como atributo degenerado na fato por não haver necessidade de hierarquia geográfica no escopo atual.
+*nom_cidade_estabelecimento* mantida como atributo degenerado na fato por não haver necessidade de hierarquia geográfica no escopo atual.
 
 Uso de SCD Tipo 1 nas dimensões.
 
 Separação clara entre data do evento e data de carga.
+
+# Como Executar
+- Criar banco PostgreSQL
+- Configurar variáveis de conexão
+- Executar ingestão:
+- Executar scripts SQL na ordem:
+    01 → 02 → 03 → 04
+- python etl
+    05_ingestao_csv_to_raw.py
+-Executar scripts SQL na ordem:
+    06 → 07 → 08 → 09
 
 # Encerramento
 
