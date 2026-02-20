@@ -9,7 +9,7 @@
 --Criação das tabelas na camada trusted
 --tabela agencia
 --===============================================================================================================================================================
-CREATE TABLE trusted.agencia (
+CREATE TABLE IF NOT EXISTS trusted.agencia (
     cod_cooperativa TEXT,
     des_nome_cooperativa TEXT,
     cod_agencia TEXT,
@@ -31,7 +31,7 @@ COMMENT ON COLUMN trusted.agencia.dat_carga IS 'Data e hora de carga do registro
 --===============================================================================================================================================================
 --tabela associado
 --===============================================================================================================================================================
-create table trusted.associado (
+CREATE TABLE IF NOT EXISTS trusted.associado (
   num_cpf_cnpj TEXT,
   des_nome_associado TEXT,
   dat_associacao DATE,
@@ -55,7 +55,7 @@ COMMENT ON COLUMN trusted.associado.dat_carga IS 'Data e hora de carga do regist
 --===============================================================================================================================================================
 --tabela transacoes
 --===============================================================================================================================================================
-create table trusted.transacoes(
+CREATE TABLE IF NOT EXISTS trusted.transacoes(
   cod_transacao TEXT,
   num_cpf_cnpj TEXT,
   cod_cooperativa TEXT,

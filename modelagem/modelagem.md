@@ -13,6 +13,9 @@ Dimensões:
 Fato:
 - fato_transacoes
 
+Fato Agregada:
+- fa_associado_ativo_3m
+
 ## Estratégias adotadas
 ## SCD Tipo 1
 

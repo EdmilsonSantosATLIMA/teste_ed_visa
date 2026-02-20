@@ -8,7 +8,7 @@
 --===============================================================================================================================================================
 --tabela dim_tempo
 --===============================================================================================================================================================
-CREATE TABLE dw.dim_tempo (
+CREATE TABLE IF NOT EXISTS dw.dim_tempo (
     sk_tempo INT PRIMARY KEY,
     data_completa DATE UNIQUE,
     ano INT,
@@ -78,7 +78,7 @@ FROM generate_series(
 --===============================================================================================================================================================
 --tabela dim_associado
 --===============================================================================================================================================================
-CREATE TABLE dw.dim_associado (
+CREATE TABLE IF NOT EXISTS dw.dim_associado (
     sk_associado BIGSERIAL PRIMARY KEY,
     num_cpf_cnpj TEXT UNIQUE,
     des_nome_associado TEXT,
@@ -117,7 +117,7 @@ ON CONFLICT DO NOTHING;
 --===============================================================================================================================================================
 --tabela dim_agencia
 --===============================================================================================================================================================
-CREATE TABLE dw.dim_agencia (
+CREATE TABLE IF NOT EXISTS dw.dim_agencia (
     sk_agencia BIGSERIAL PRIMARY KEY,
     cod_cooperativa TEXT,
     cod_agencia TEXT,
@@ -153,7 +153,7 @@ ON CONFLICT DO NOTHING;
 --===============================================================================================================================================================
 --tabela dim_modalidade
 --===============================================================================================================================================================
-CREATE TABLE dw.dim_modalidade (
+CREATE TABLE IF NOT EXISTS dw.dim_modalidade (
     sk_modalidade BIGSERIAL PRIMARY KEY,
     nom_modalidade TEXT UNIQUE,
     dat_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -174,10 +174,10 @@ VALUES (
 ON CONFLICT DO NOTHING;
 
 --===============================================================================================================================================================
---Criação das tabelas na camada dw
+--Criação da tabela na camada dw
 --tabela fato_transacoes
 --===============================================================================================================================================================
-CREATE TABLE dw.fato_transacoes (
+CREATE TABLE IF NOT EXISTS dw.fato_transacoes (
     sk_fato_transacao SERIAL PRIMARY KEY,
     sk_agencia INT NOT NULL,
     sk_associado INT NOT NULL,
@@ -212,11 +212,67 @@ COMMENT ON COLUMN dw.fato_transacoes.sk_tempo IS 'Surrogate key da dimensão tem
 COMMENT ON COLUMN dw.fato_transacoes.vlr_transacao IS 'Valor monetário da transação do cartão\plástico do associado';
 COMMENT ON COLUMN dw.fato_transacoes.cod_transacao IS 'Informa o codigo da transação criada para identificar a unicidade da transação realizada pelo o associado';
 COMMENT ON COLUMN dw.fato_transacoes.nom_cidade_estabelecimento IS 'nome da cidade do Estabelecimento Valor monetário da transação do cartão\plástico do associado';
-COMMENT ON COLUMN dw.dim_modalidade.dat_carga IS 'Data e hora de carga do registro.';
+COMMENT ON COLUMN dw.fato_transacoes.dat_carga IS 'Data e hora de carga do registro.';
 
 CREATE INDEX idx_fato_data ON dw.fato_transacoes(sk_tempo);
 CREATE INDEX idx_fato_modalidade ON dw.fato_transacoes(sk_modalidade);
 CREATE INDEX idx_fato_agencia ON dw.fato_transacoes(sk_agencia);
 
+--===============================================================================================================================================================
+--tabela fato_agregada
+--===============================================================================================================================================================
+CREATE TABLE IF NOT EXISTS dw.fa_associado_ativo_3m (
+    sk_associado INTEGER  PRIMARY KEY,
+    associado_frequente BOOLEAN not null,
+    associado_ativo_credito BOOLEAN not null,
+    associado_ativo_debito BOOLEAN not null,
+    dat_carga TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);   
+COMMENT ON TABLE dw.fa_associado_ativo_3m IS 'Fato com granularidade 1 linha = 1 associado. Modelo dimensional estrela.';
+COMMENT ON COLUMN dw.fa_associado_ativo_3m.sk_associado IS 'Surrogate key da dimensão associado (SCD Tipo 1).';
+COMMENT ON COLUMN dw.fa_associado_ativo_3m.associado_frequente IS 'Flag se o associado é ativo nos últimos 3 meses, usando o plástico\transação em qualquer modalidade';
+COMMENT ON COLUMN dw.fa_associado_ativo_3m.associado_ativo_credito IS 'Flag se o associado é ativo nos últimos 3 meses, usando o plástico\transação na modalidade de crédito';
+COMMENT ON COLUMN dw.fa_associado_ativo_3m.associado_ativo_debito IS 'Flag se o associado é ativo nos últimos 3 meses, usando o plástico\transação na modalidade de débito.';
+COMMENT ON COLUMN dw.fa_associado_ativo_3m.dat_carga IS 'Data e hora de carga do registro.';
 
+--===============================================================================================================================================================
+-- Criação da View
+--===============================================================================================================================================================
+CREATE OR REPLACE VIEW dw.vw_associado_flat AS
+WITH referencia AS (
+    SELECT MAX(dt.data_completa) AS data_ref
+    FROM dw.fato_transacoes ft
+    JOIN dw.dim_tempo dt 
+        ON ft.sk_tempo = dt.sk_tempo
+),
+ultimos_3_meses AS (
+    SELECT
+        ft.sk_associado,
+        dt.data_completa,
+        dm.nom_modalidade as nome_modalidade
+    FROM dw.fato_transacoes ft
+    JOIN dw.dim_tempo dt 
+        ON ft.sk_tempo = dt.sk_tempo
+    JOIN dw.dim_modalidade dm 
+        ON ft.sk_modalidade = dm.sk_modalidade
+    WHERE dt.data_completa >= (
+        SELECT date_trunc('month', data_ref) - INTERVAL '2 months'
+        FROM referencia
+    )
+),
 
+agregacao AS (
+    SELECT
+        sk_associado,
+        COUNT(DISTINCT date_trunc('month', data_completa)) AS meses_distintos,
+        MAX(CASE WHEN nome_modalidade LIKE 'CR%DITO' THEN 1 ELSE 0 END) AS flag_credito,
+        MAX(CASE WHEN nome_modalidade LIKE 'D%BITO' THEN 1 ELSE 0 END) AS flag_debito
+    FROM ultimos_3_meses
+    GROUP BY sk_associado
+)
+SELECT
+    sk_associado,
+    CASE WHEN meses_distintos = 3 THEN TRUE ELSE FALSE END AS associado_frequente,
+    CASE WHEN flag_credito = 1 THEN TRUE ELSE FALSE END AS associado_ativo_credito,
+    CASE WHEN flag_debito = 1 THEN TRUE ELSE FALSE END AS associado_ativo_debito
+FROM agregacao;
