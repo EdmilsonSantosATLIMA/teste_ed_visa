@@ -4,7 +4,7 @@ from sqlalchemy import create_engine
 from datetime import datetime
 
 # String de conexão via variável de ambiente
-string_conexao_db = "postgresql://neondb_owner:npg_OuZE8ejakXL7@ep-holy-tree-ack2iwwg-pooler.sa-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+string_conexao_db = "DB_LINK"
 
 engine = create_engine(string_conexao_db)
 
